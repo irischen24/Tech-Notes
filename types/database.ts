@@ -1,5 +1,5 @@
 /**
- * Supabase Database 型別 — 對應 supabase/migrations/20261011000001_initial_schema.sql
+ * Supabase Database 型別 — 對應 supabase/migrations/ 下所有 migration（目前到 20261011000002）
  *
  * 此檔依 `supabase gen types typescript` 的輸出格式手寫（開發環境無法連到專案）。
  * 套用 migration 後，請以官方產生器覆蓋並比對差異：
@@ -307,6 +307,19 @@ export type Database = {
     Views: Record<string, never>;
     Functions: {
       is_admin: { Args: Record<string, never>; Returns: boolean };
+      search_published_notes: {
+        Args: { search_query: string; max_results?: number };
+        Returns: {
+          id: string;
+          title: string;
+          summary: string | null;
+          published_at: string | null;
+          chapter_title: string;
+          category_name: string;
+          category_slug: string;
+          match_in: "title" | "tag" | "summary" | "content";
+        }[];
+      };
     };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;

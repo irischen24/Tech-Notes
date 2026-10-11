@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { Inbox, Plus, Tag, Upload } from "lucide-react";
+import { MarkdownRenderer } from "@/components/markdown/markdown-renderer";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Chip } from "@/components/ui/chip";
@@ -116,13 +117,7 @@ export default function DesignSystemPage() {
 
       <section aria-labelledby="ds-code" className="space-y-4">
         <h2 id="ds-code" className="type-title">程式碼區塊</h2>
-        <figure className="overflow-hidden rounded-2xl bg-code-bg text-code-fg">
-          <figcaption className="flex h-10 items-center bg-code-bar px-4 type-label text-code-muted">sql</figcaption>
-          <pre className="overflow-x-auto p-4 text-sm leading-relaxed" tabIndex={0}>
-            <code>{SAMPLE_SQL}</code>
-          </pre>
-        </figure>
-        <p className="type-body-sm text-on-surface-variant">語法高亮與一鍵複製在 Phase 3 隨 Markdown Renderer 一起完成。</p>
+        <MarkdownRenderer content={"```sql\n" + SAMPLE_SQL + "\n```"} />
       </section>
 
       <section aria-labelledby="ds-feedback" className="space-y-4">

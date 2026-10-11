@@ -116,5 +116,26 @@ reset role;
 select pg_temp.expect_eq((select count(*) from public.audit_logs where result='success'), 1, 'audit_logs 無法被修改或刪除');
 select pg_temp.expect_eq((select count(*) from storage.buckets where id='note-drafts' and public = false), 1, 'note-drafts 為 private bucket');
 
+
+-- ── Phase 3：搜尋與分類 slug ──
+select pg_temp.expect_fail($$insert into public.categories (parent_id, name, slug) select id, 'dup', 'sql' from public.categories where slug = 'linux'$$, '分類 slug 全域唯一');
+update public.notes set content_md = '使用 LEFT JOIN 合併資料表，100% 的 a_b 範例' where slug = 'published-note';
+insert into public.notes (chapter_id, title, slug, content_md, status) values ('10000000-0000-0000-0000-000000000001', '秘密草稿 JOIN', 'secret-draft', 'LEFT JOIN 草稿', 'draft');
+set role anon;
+select set_config('request.jwt.claim.sub', '', false);
+select pg_temp.expect_eq((select count(*) from public.search_published_notes('LEFT JOIN')), 1, '搜尋不回傳草稿內容');
+select pg_temp.expect_eq((select count(*) from public.search_published_notes('秘密')), 0, '草稿標題搜不到');
+select pg_temp.expect_eq((select count(*) from public.search_published_notes('%')), 1, '% 視為一般字元');
+select pg_temp.expect_eq((select count(*) from public.search_published_notes('_')), 1, '_ 視為一般字元');
+select pg_temp.expect_eq((select count(*) from public.search_published_notes('sql')), 2, '標籤名稱可搜尋（不分大小寫）');
+select pg_temp.expect_eq((select count(*) from public.search_published_notes('   ')), 0, '空白查詢回傳 0');
+select pg_temp.expect_eq((select count(*) from public.search_published_notes(repeat('a', 101))), 0, '超過 100 字回傳 0');
+select pg_temp.expect_eq((select count(*) from public.search_published_notes('''; drop table public.notes; --')), 0, 'SQL injection 字串只是一般文字');
+select pg_temp.expect_eq((select count(*) from public.notes), 2, 'notes 資料表仍存在（anon 可見 2 篇已發布）');
+reset role;
+set role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000a', false);
+select pg_temp.expect_eq((select count(*) from public.search_published_notes('秘密')), 0, 'admin 呼叫搜尋也只回傳已發布');
+reset role;
 \o
 \echo '✅ 全部 RLS / 約束測試通過'

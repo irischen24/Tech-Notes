@@ -251,7 +251,7 @@ iris-tech-notes/
 |---|---|---|
 | 1 ✅ | Next.js、Tailwind、Supabase client、Design System | lint / tsc / unit test / build 全過；`/design-system` 顯示連線狀態；深淺色切換保存；`/admin` 未登入導向 `/login`；client bundle 無 server 秘密 |
 | 2 ✅ | Schema、RLS、Storage policy、管理員登入 | Migration 可在乾淨專案重跑；anon 讀不到草稿、無法寫入（以 SQL 測試驗證）；visitor 無法自升 admin；Email 登入 / 登出可用 |
-| 3 | 公開網站、Markdown Renderer、搜尋 | ISR 生效；XSS 測試通過；TOC / Anchor / 上下篇 / 程式碼複製；手機可讀 |
+| 3 ✅ | 公開網站、Markdown Renderer、搜尋 | ISR 生效；XSS 測試通過；TOC / Anchor / 上下篇 / 程式碼複製；手機可讀 |
 | 4 | 後台 Dashboard、分類 / 章節 / 筆記 CRUD | 每個 Action 有 requireAdmin + zod；發布後 `updateTag` 使公開頁更新；刪除受限提示；audit log 寫入 |
 | 5 | HackMD 匯入與同步 | 測試連線、列表、匯入為草稿、不重複、衝突比對畫面；401/403/404/429/5xx/逾時皆有訊息 |
 | 6 | 圖片管理與容量警告 | MIME / 大小驗證、安全檔名、可設定額度、70/85/95% 警告；不顯示虛構計費額度 |
@@ -265,3 +265,26 @@ iris-tech-notes/
 - 授權三層：`proxy.ts`（樂觀導向）→ `lib/auth/dal.ts` 的 `requireAdmin()`（每個 Server Action / Route Handler / 頁面）→ PostgreSQL RLS。
 - 權限收斂：migration 先 `REVOKE ALL` 再逐表授權。**之後每個新增資料表的 migration 都必須自行寫 GRANT 與 RLS**，否則會沿用 Supabase 預設的全開權限（RLS 仍會擋，但不應依賴單一防線）。
 - 稽核：登入、登出寫入 `audit_logs`。登入失敗無法以使用者身分寫入（尚非 admin），請以 Supabase Auth Logs 查詢。
+
+## 9. Phase 3 實作備註
+
+**快取策略（修正 Phase 1 的 ISR 規劃）**：公開頁的資料區塊在請求時渲染（`connection()` 或頁面頂層讀取 params），
+資料查詢與 Markdown 渲染結果由 `'use cache'` + `cacheLife({ revalidate: 3600 })` + `cacheTag()` 快取。
+原因：若在 build 時預先渲染資料，`next build` 就必須連得到 Supabase；Supabase 暫停或 CI 沒有金鑰時部署會失敗。
+現行做法 build 不需資料庫，訪客仍讀取快取結果，Phase 4 發布後以 `updateTag()` 立即失效。
+
+| 快取標籤 | 使用者 | Phase 4 何時失效 |
+|---|---|---|
+| `notes` | 首頁、分類、筆記、搜尋、標籤 | 任何筆記新增 / 修改 / 發布 / 封存 / 刪除 |
+| `note:<id>` | 單篇筆記與其 Markdown 渲染 | 該筆記變動 |
+| `categories` | 分類樹、breadcrumb、首頁計數 | 分類或章節變動 |
+| `tags` | 筆記標籤、標籤頁、相關筆記、搜尋 | 標籤變動 |
+
+**安全**：`'use cache'` 內只使用無 cookie 的 `createSupabasePublicClient()`；查詢另加 `status = 'published'`。
+搜尋使用資料庫函式 `search_published_notes()`（SECURITY INVOKER、跳脫 `%` `_`），不在前端組 PostgREST filter 字串。
+Markdown：`skipHtml`、不使用 `rehype-raw`、連結 / 圖片白名單（圖片只允許 https 與站內路徑）。
+
+**404**：格式錯誤的網址（非 UUID 的筆記 id、非法 slug）由 `proxy.ts` 回傳真正的 HTTP 404。
+格式正確但不存在或未發布的內容，因 layout 外框已開始串流，回應為 200 + not-found 畫面 + `noindex`（Next.js 16 官方行為）。
+
+**Schema 調整**：`categories.slug` 改為全域唯一，讓 `/categories/[slug]` 可唯一定位（保留 `(parent_id, slug)` 約束供 seed 使用）。
