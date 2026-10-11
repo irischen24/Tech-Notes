@@ -10,15 +10,18 @@
 |---|---|
 | 1. Next.js / Tailwind / Supabase 連線 / Design System | ✅ 完成 |
 | 2. Schema、RLS、Storage policy、管理員登入 | ✅ 完成（需依下方「Supabase 初始設定」套用到專案） |
-| 3–7 | 未開始 |
+| 3. 公開網站、Markdown Renderer、搜尋 | ✅ 完成（需套用 migration 0002） |
+| 4–7 | 未開始 |
 
-可用頁面：`/`、`/login`、`/admin`（需管理員）、`/design-system`、`/api/health`、`/auth/confirm`（Email 連結回呼）。
+可用頁面：`/`、`/categories`、`/categories/[slug]`、`/notes/[id]`、`/tags/[slug]`、`/search?q=`、`/login`、`/admin`（需管理員）、`/design-system`、`/api/health`、`/auth/confirm`。
+
+> **Phase 3 升級**：在 SQL Editor 執行 `supabase/migrations/20261011000002_public_reading_and_search.sql`（新增分類 slug 全域唯一與搜尋函式）。若既有資料中不同父分類下有相同 slug，執行會失敗，請先改名。
 
 ## Supabase 初始設定（Phase 2，只需做一次）
 
 以下步驟都在 Supabase Dashboard 操作，無法由程式自動完成。
 
-1. **套用 Schema**：SQL Editor → New query → 貼上 `supabase/migrations/20261011000001_initial_schema.sql` 全文 → Run。
+1. **套用 Schema**：SQL Editor → New query → 依檔名順序貼上 `supabase/migrations/` 內每個檔案 → Run。
    （若使用 Supabase CLI：`npx supabase link --project-ref hfozxjsriughgduwfbgn && npx supabase db push`）
 2. **初始分類**：SQL Editor 執行 `supabase/seed.sql`（可重複執行）。
 3. **關閉公開註冊**：Authentication → Sign In / Providers → 關閉「Allow new users to sign up」。
@@ -32,10 +35,14 @@
 9. **產生正式型別**：`npx supabase gen types typescript --project-id hfozxjsriughgduwfbgn --schema public > types/database.ts`，與目前手寫版比對後 commit。
 10. **驗證**：開啟 `/admin` → 導向登入 → 登入後應看到「資料庫連線與管理權限正常」與 25 個分類。
 
+### 公開頁面整合測試
+
+見 `tests/integration/README.md`（本機 PostgreSQL + PostgREST 模擬 Supabase REST）。
+
 ### 資料庫測試（本機 PostgreSQL 15+）
 
 ```bash
-npm run test:db    # 建立暫時資料庫 → stub → migration → seed（執行兩次）→ 43 項 RLS / 約束斷言
+npm run test:db    # 建立暫時資料庫 → stub → migration → seed（執行兩次）→ 54 項 RLS / 約束 / 搜尋斷言
 ```
 
 `supabase/tests/local-supabase-stub.sql` 只模擬 Supabase 的 roles、`auth.uid()` 與 storage 表，**不可在 Supabase 執行**。
