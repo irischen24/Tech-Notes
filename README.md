@@ -11,9 +11,14 @@
 | 1. Next.js / Tailwind / Supabase 連線 / Design System | ✅ 完成 |
 | 2. Schema、RLS、Storage policy、管理員登入 | ✅ 完成（需依下方「Supabase 初始設定」套用到專案） |
 | 3. 公開網站、Markdown Renderer、搜尋 | ✅ 完成（需套用 migration 0002） |
-| 4–7 | 未開始 |
+| 4. 後台 Dashboard、分類 / 章節管理、筆記編輯與發布 | ✅ 完成（需套用 migration 0003） |
+| 5–7 | 未開始 |
 
-可用頁面：`/`、`/categories`、`/categories/[slug]`、`/notes/[id]`、`/tags/[slug]`、`/search?q=`、`/login`、`/admin`（需管理員）、`/design-system`、`/api/health`、`/auth/confirm`。
+後台：`/admin`、`/admin/notes`（含新增 / 編輯）、`/admin/categories`、`/admin/chapters`、`/admin/logs`、`/admin/settings`。
+
+> **Phase 4 升級**：在 SQL Editor 執行 `supabase/migrations/20261011000003_admin_note_editing.sql`（筆記儲存函式，含標籤同步與樂觀鎖）。
+
+公開頁面：`/`、`/categories`、`/categories/[slug]`、`/notes/[id]`、`/tags/[slug]`、`/search?q=`、`/login`、`/admin`（需管理員）、`/design-system`、`/api/health`、`/auth/confirm`。
 
 > **Phase 3 升級**：在 SQL Editor 執行 `supabase/migrations/20261011000002_public_reading_and_search.sql`（新增分類 slug 全域唯一與搜尋函式）。若既有資料中不同父分類下有相同 slug，執行會失敗，請先改名。
 
@@ -42,7 +47,7 @@
 ### 資料庫測試（本機 PostgreSQL 15+）
 
 ```bash
-npm run test:db    # 建立暫時資料庫 → stub → migration → seed（執行兩次）→ 54 項 RLS / 約束 / 搜尋斷言
+npm run test:db    # 建立暫時資料庫 → stub → migration → seed（執行兩次）→ 68 項 RLS / 約束 / 搜尋 / 筆記儲存斷言
 ```
 
 `supabase/tests/local-supabase-stub.sql` 只模擬 Supabase 的 roles、`auth.uid()` 與 storage 表，**不可在 Supabase 執行**。
