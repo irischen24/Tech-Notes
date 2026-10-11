@@ -250,11 +250,18 @@ iris-tech-notes/
 | Phase | 範圍 | 驗收標準 |
 |---|---|---|
 | 1 ✅ | Next.js、Tailwind、Supabase client、Design System | lint / tsc / unit test / build 全過；`/design-system` 顯示連線狀態；深淺色切換保存；`/admin` 未登入導向 `/login`；client bundle 無 server 秘密 |
-| 2 | Schema、RLS、Storage policy、管理員登入 | Migration 可在乾淨專案重跑；anon 讀不到草稿、無法寫入（以 SQL 測試驗證）；visitor 無法自升 admin；Email 登入 / 登出可用 |
+| 2 ✅ | Schema、RLS、Storage policy、管理員登入 | Migration 可在乾淨專案重跑；anon 讀不到草稿、無法寫入（以 SQL 測試驗證）；visitor 無法自升 admin；Email 登入 / 登出可用 |
 | 3 | 公開網站、Markdown Renderer、搜尋 | ISR 生效；XSS 測試通過；TOC / Anchor / 上下篇 / 程式碼複製；手機可讀 |
 | 4 | 後台 Dashboard、分類 / 章節 / 筆記 CRUD | 每個 Action 有 requireAdmin + zod；發布後 `updateTag` 使公開頁更新；刪除受限提示；audit log 寫入 |
 | 5 | HackMD 匯入與同步 | 測試連線、列表、匯入為草稿、不重複、衝突比對畫面；401/403/404/429/5xx/逾時皆有訊息 |
 | 6 | 圖片管理與容量警告 | MIME / 大小驗證、安全檔名、可設定額度、70/85/95% 警告；不顯示虛構計費額度 |
 | 7 | 測試、安全檢查、部署 | Playwright 三種裝置通過；Vercel Production 部署成功；Push 自動部署 |
 
-**Phase 6 待確認決策**：草稿圖片是否必須保密？若是，採雙 bucket（public + private signed URL）；若可接受「知道網址即可存取」，可只用單一 public bucket。
+**Storage 決策（Phase 2 已實作）**：建立雙 bucket。`note-images` 為 public（只放可公開的圖片），`note-drafts` 為 private（草稿附件，Phase 6 以 signed URL 預覽）。兩者寫入皆限 admin，且 admin 也只能寫入這兩個 bucket。若日後確定不需要私有草稿，可只使用 `note-images`。
+
+## 8. Phase 2 實作備註
+
+- 實際 schema 在 ERD 之外新增：`profiles.updated_at`、`notes.sort_order`（章節內排序與上一篇 / 下一篇）、`notes.hackmd_content_hash` / `hackmd_synced_at`（Phase 5 衝突偵測）。
+- 授權三層：`proxy.ts`（樂觀導向）→ `lib/auth/dal.ts` 的 `requireAdmin()`（每個 Server Action / Route Handler / 頁面）→ PostgreSQL RLS。
+- 權限收斂：migration 先 `REVOKE ALL` 再逐表授權。**之後每個新增資料表的 migration 都必須自行寫 GRANT 與 RLS**，否則會沿用 Supabase 預設的全開權限（RLS 仍會擋，但不應依賴單一防線）。
+- 稽核：登入、登出寫入 `audit_logs`。登入失敗無法以使用者身分寫入（尚非 admin），請以 Supabase Auth Logs 查詢。

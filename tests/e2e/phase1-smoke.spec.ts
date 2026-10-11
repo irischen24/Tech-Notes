@@ -26,8 +26,8 @@ test("頁面沒有水平溢出", async ({ page }) => {
 test("未登入存取 /admin 會導向 /login", async ({ page }) => {
   const response = await page.goto("/admin");
   expect(page.url()).toContain("/login?next=%2Fadmin");
-  // /login 於 Phase 2 才建立，此時預期為 404
-  expect(response?.status()).toBe(404);
+  expect(response?.status()).toBe(200);
+  await expect(page.getByRole("heading", { name: "管理員登入" })).toBeVisible();
 });
 
 test("健康檢查端點不洩漏金鑰", async ({ request }) => {
