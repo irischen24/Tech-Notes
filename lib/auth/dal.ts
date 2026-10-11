@@ -1,4 +1,5 @@
 import "server-only";
+import { connection } from "next/server";
 import { cache } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -22,6 +23,8 @@ import {
 export const getAuthorization = cache(async (): Promise<
   AuthorizationResult & { supabase: SupabaseClient<Database> }
 > => {
+  // 驗證 session 會用到目前時間（JWT 到期判斷），明確標示為請求時運算，避免被預先渲染
+  await connection();
   const supabase = await createSupabaseServerClient();
 
   const { data: claimsData, error: claimsError } = await supabase.auth.getClaims();

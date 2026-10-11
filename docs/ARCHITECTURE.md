@@ -252,7 +252,7 @@ iris-tech-notes/
 | 1 ✅ | Next.js、Tailwind、Supabase client、Design System | lint / tsc / unit test / build 全過；`/design-system` 顯示連線狀態；深淺色切換保存；`/admin` 未登入導向 `/login`；client bundle 無 server 秘密 |
 | 2 ✅ | Schema、RLS、Storage policy、管理員登入 | Migration 可在乾淨專案重跑；anon 讀不到草稿、無法寫入（以 SQL 測試驗證）；visitor 無法自升 admin；Email 登入 / 登出可用 |
 | 3 ✅ | 公開網站、Markdown Renderer、搜尋 | ISR 生效；XSS 測試通過；TOC / Anchor / 上下篇 / 程式碼複製；手機可讀 |
-| 4 | 後台 Dashboard、分類 / 章節 / 筆記 CRUD | 每個 Action 有 requireAdmin + zod；發布後 `updateTag` 使公開頁更新；刪除受限提示；audit log 寫入 |
+| 4 ✅ | 後台 Dashboard、分類 / 章節 / 筆記 CRUD | 每個 Action 有 requireAdmin + zod；發布後 `updateTag` 使公開頁更新；刪除受限提示；audit log 寫入 |
 | 5 | HackMD 匯入與同步 | 測試連線、列表、匯入為草稿、不重複、衝突比對畫面；401/403/404/429/5xx/逾時皆有訊息 |
 | 6 | 圖片管理與容量警告 | MIME / 大小驗證、安全檔名、可設定額度、70/85/95% 警告；不顯示虛構計費額度 |
 | 7 | 測試、安全檢查、部署 | Playwright 三種裝置通過；Vercel Production 部署成功；Push 自動部署 |
@@ -288,3 +288,15 @@ Markdown：`skipHtml`、不使用 `rehype-raw`、連結 / 圖片白名單（圖�
 格式正確但不存在或未發布的內容，因 layout 外框已開始串流，回應為 200 + not-found 畫面 + `noindex`（Next.js 16 官方行為）。
 
 **Schema 調整**：`categories.slug` 改為全域唯一，讓 `/categories/[slug]` 可唯一定位（保留 `(parent_id, slug)` 約束供 seed 使用）。
+
+## 10. Phase 4 實作備註
+
+- **Server Action 模式**：每個 action 都視為公開 POST 端點，依序做 `requireAdmin()` → zod 驗證未知輸入 → 資料庫操作 →
+  `mapDbError()`（只回傳友善訊息與欄位，不外洩資料庫原文）→ 稽核日誌（成功與失敗都記錄）→ `updateTag()` → `refresh()`。
+- **筆記儲存**：`admin_save_note()`（SECURITY INVOKER，RLS 照常生效）在單一交易內寫入筆記與標籤；
+  以 `updated_at` 做樂觀鎖，兩個分頁同時編輯時後存者會收到衝突提示，不會默默覆蓋。
+- **標籤 slug**：英文名稱直接轉換；中文名稱使用穩定的 FNV-1a 雜湊（例如 `t-685761d3`），同名標籤永遠得到同一個 slug。
+- **刪除限制**：分類（有子分類或章節）與章節（有筆記，含草稿）在 action 內先檢查並說明原因；FK `RESTRICT` 仍是最終防線。
+- **表單**：React Hook Form + 同一份 zod schema（client 只為體驗，server 一定重新驗證）。
+- **DAL 調整**：`getAuthorization()` 先 `await connection()`，因為驗證 JWT 到期需要目前時間；否則 Next.js 16 會在預先渲染階段報錯。
+- **尚未提供**：圖片上傳（Phase 6，封面目前輸入 https 網址）、HackMD 匯入（Phase 5）、拖曳排序（以數字欄位排序）。
