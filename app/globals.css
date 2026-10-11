@@ -1,0 +1,263 @@
+@import "tailwindcss";
+
+/*
+ * Iris Notes — Material Design 3 Design Tokens
+ * 色彩值依專案規格（Primary #6750A4 等）；其餘角色依 MD3 baseline tonal palette 補齊。
+ * 主題由 <html data-theme="light|dark"> 控制（見 components/theme/theme-script.ts）；
+ * 未執行 JS 時，以 prefers-color-scheme 作為後備。
+ */
+
+:root {
+  color-scheme: light;
+  --md-primary: #6750a4;
+  --md-on-primary: #ffffff;
+  --md-primary-container: #eaddff;
+  --md-on-primary-container: #21005d;
+  --md-secondary: #625b71;
+  --md-on-secondary: #ffffff;
+  --md-secondary-container: #e8def8;
+  --md-on-secondary-container: #1d192b;
+  --md-tertiary: #7d5260;
+  --md-on-tertiary: #ffffff;
+  --md-tertiary-container: #ffd8e4;
+  --md-on-tertiary-container: #31111d;
+  --md-error: #b3261e;
+  --md-on-error: #ffffff;
+  --md-error-container: #f9dedc;
+  --md-on-error-container: #410e0b;
+  --md-background: #fffbfe;
+  --md-on-background: #1c1b1f;
+  --md-surface: #fffbfe;
+  --md-on-surface: #1c1b1f;
+  --md-on-surface-variant: #49454f;
+  --md-surface-container: #f3edf7;
+  /* 規格指定 Surface Container Low = #E7E0EC（較深的層級，用於輸入框、程式碼標籤列等） */
+  --md-surface-container-low: #e7e0ec;
+  --md-surface-container-high: #ece6f0;
+  --md-outline: #79747e;
+  --md-outline-variant: #cac4d0;
+  --md-inverse-surface: #313033;
+  --md-inverse-on-surface: #f4eff4;
+  --md-scrim: #000000;
+  --md-success: #146c2e;
+  --md-success-container: #c4eed0;
+  --md-warning: #7a5900;
+  --md-warning-container: #ffdf9e;
+
+  /* 程式碼區塊：兩種主題都使用深色，維持程式碼可讀性 */
+  --code-bg: #1d1b26;
+  --code-fg: #e6e1e5;
+  --code-bar: #2a2735;
+  --code-muted: #a9a3b4;
+
+  --blob-a: #d0bcff;
+  --blob-b: #ffd8e4;
+  --blob-c: #e8def8;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --md-primary: #d0bcff;
+  --md-on-primary: #381e72;
+  --md-primary-container: #4f378b;
+  --md-on-primary-container: #eaddff;
+  --md-secondary: #ccc2dc;
+  --md-on-secondary: #332d41;
+  --md-secondary-container: #4a4458;
+  --md-on-secondary-container: #e8def8;
+  --md-tertiary: #efb8c8;
+  --md-on-tertiary: #492532;
+  --md-tertiary-container: #633b48;
+  --md-on-tertiary-container: #ffd8e4;
+  --md-error: #f2b8b5;
+  --md-on-error: #601410;
+  --md-error-container: #8c1d18;
+  --md-on-error-container: #f9dedc;
+  --md-background: #141218;
+  --md-on-background: #e6e1e5;
+  --md-surface: #141218;
+  --md-on-surface: #e6e1e5;
+  --md-on-surface-variant: #cac4d0;
+  --md-surface-container: #211f26;
+  --md-surface-container-low: #1d1b20;
+  --md-surface-container-high: #2b2930;
+  --md-outline: #938f99;
+  --md-outline-variant: #49454f;
+  --md-inverse-surface: #e6e1e5;
+  --md-inverse-on-surface: #313033;
+  --md-success: #a8d5b3;
+  --md-success-container: #0f5223;
+  --md-warning: #f5c35b;
+  --md-warning-container: #5c4300;
+
+  --code-bg: #0f0d14;
+  --code-bar: #1d1b26;
+
+  --blob-a: #4f378b;
+  --blob-b: #633b48;
+  --blob-c: #4a4458;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]):not([data-theme="dark"]) {
+    color-scheme: dark;
+    --md-primary: #d0bcff;
+    --md-on-primary: #381e72;
+    --md-primary-container: #4f378b;
+    --md-on-primary-container: #eaddff;
+    --md-secondary-container: #4a4458;
+    --md-on-secondary-container: #e8def8;
+    --md-tertiary: #efb8c8;
+    --md-background: #141218;
+    --md-on-background: #e6e1e5;
+    --md-surface: #141218;
+    --md-on-surface: #e6e1e5;
+    --md-on-surface-variant: #cac4d0;
+    --md-surface-container: #211f26;
+    --md-surface-container-low: #1d1b20;
+    --md-surface-container-high: #2b2930;
+    --md-outline: #938f99;
+    --md-outline-variant: #49454f;
+    --blob-a: #4f378b;
+    --blob-b: #633b48;
+    --blob-c: #4a4458;
+  }
+}
+
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+@theme inline {
+  --color-primary: var(--md-primary);
+  --color-on-primary: var(--md-on-primary);
+  --color-primary-container: var(--md-primary-container);
+  --color-on-primary-container: var(--md-on-primary-container);
+  --color-secondary: var(--md-secondary);
+  --color-on-secondary: var(--md-on-secondary);
+  --color-secondary-container: var(--md-secondary-container);
+  --color-on-secondary-container: var(--md-on-secondary-container);
+  --color-tertiary: var(--md-tertiary);
+  --color-on-tertiary: var(--md-on-tertiary);
+  --color-tertiary-container: var(--md-tertiary-container);
+  --color-on-tertiary-container: var(--md-on-tertiary-container);
+  --color-error: var(--md-error);
+  --color-on-error: var(--md-on-error);
+  --color-error-container: var(--md-error-container);
+  --color-on-error-container: var(--md-on-error-container);
+  --color-background: var(--md-background);
+  --color-on-background: var(--md-on-background);
+  --color-surface: var(--md-surface);
+  --color-on-surface: var(--md-on-surface);
+  --color-on-surface-variant: var(--md-on-surface-variant);
+  --color-surface-container: var(--md-surface-container);
+  --color-surface-container-low: var(--md-surface-container-low);
+  --color-surface-container-high: var(--md-surface-container-high);
+  --color-outline: var(--md-outline);
+  --color-outline-variant: var(--md-outline-variant);
+  --color-inverse-surface: var(--md-inverse-surface);
+  --color-inverse-on-surface: var(--md-inverse-on-surface);
+  --color-success: var(--md-success);
+  --color-success-container: var(--md-success-container);
+  --color-warning: var(--md-warning);
+  --color-warning-container: var(--md-warning-container);
+  --color-code-bg: var(--code-bg);
+  --color-code-fg: var(--code-fg);
+  --color-code-bar: var(--code-bar);
+  --color-code-muted: var(--code-muted);
+
+  --font-sans: "Roboto Variable", "Roboto", "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", "Heiti TC", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, "Noto Sans Mono CJK TC", monospace;
+
+  --radius-card: 1.5rem;   /* 24px 一般卡片 */
+  --radius-hero: 2.5rem;   /* 40px Hero（規格 32–48px） */
+
+  --shadow-elevation-1: 0 1px 2px rgb(0 0 0 / 0.3), 0 1px 3px 1px rgb(0 0 0 / 0.15);
+  --shadow-elevation-2: 0 1px 2px rgb(0 0 0 / 0.3), 0 2px 6px 2px rgb(0 0 0 / 0.15);
+
+  --ease-emphasized: cubic-bezier(0.2, 0, 0, 1);
+}
+
+/* MD3 Type scale（中文內文行高放寬至 1.75） */
+@utility type-display {
+  font-size: clamp(2.5rem, 1.6rem + 3.6vw, 3.5625rem);
+  line-height: 1.12;
+  font-weight: 400;
+  letter-spacing: -0.015em;
+}
+@utility type-headline {
+  font-size: clamp(1.5rem, 1.25rem + 1vw, 2rem);
+  line-height: 1.25;
+  font-weight: 500;
+}
+@utility type-title {
+  font-size: 1.375rem;
+  line-height: 1.35;
+  font-weight: 500;
+}
+@utility type-title-sm {
+  font-size: 1rem;
+  line-height: 1.5;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+@utility type-body {
+  font-size: 1rem;
+  line-height: 1.75;
+}
+@utility type-body-sm {
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
+@utility type-label {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-rendering: optimizeLegibility;
+  }
+  body {
+    background: var(--md-background);
+    color: var(--md-on-background);
+    font-family: var(--font-sans);
+    font-feature-settings: "palt" 0;
+  }
+  :focus-visible {
+    outline: 3px solid var(--md-primary);
+    outline-offset: 2px;
+  }
+  ::selection {
+    background: var(--md-primary-container);
+    color: var(--md-on-primary-container);
+  }
+  code,
+  kbd,
+  pre,
+  samp {
+    font-family: var(--font-mono);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@keyframes blob-drift {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(2%, -3%, 0) scale(1.06);
+  }
+}
