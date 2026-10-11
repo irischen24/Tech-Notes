@@ -16,8 +16,12 @@ create table auth.users (
   created_at timestamptz default now()
 );
 
+-- 與 Supabase 相同：同時支援舊版 request.jwt.claim.sub 與 PostgREST 新版 request.jwt.claims
 create function auth.uid() returns uuid language sql stable as $$
-  select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid
+  select coalesce(
+    nullif(current_setting('request.jwt.claim.sub', true), ''),
+    nullif(current_setting('request.jwt.claims', true), '')::jsonb ->> 'sub'
+  )::uuid
 $$;
 
 create table storage.buckets (

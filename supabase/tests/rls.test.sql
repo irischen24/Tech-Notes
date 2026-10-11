@@ -137,5 +137,42 @@ set role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000a', false);
 select pg_temp.expect_eq((select count(*) from public.search_published_notes('秘密')), 0, 'admin 呼叫搜尋也只回傳已發布');
 reset role;
+
+-- ── Phase 4：admin_save_note ──
+set role anon;
+select set_config('request.jwt.claim.sub', '', false);
+select pg_temp.expect_fail($$select public.admin_save_note(null, '10000000-0000-0000-0000-000000000001', 'x', 'anon-note', null, '', 'draft', null, 0, '[]', null)$$, 'anon 不可呼叫 admin_save_note');
+reset role;
+set role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000b', false);
+select pg_temp.expect_fail($$select public.admin_save_note(null, '10000000-0000-0000-0000-000000000001', 'x', 'visitor-note', null, '', 'draft', null, 0, '[]', null)$$, 'visitor 不可呼叫 admin_save_note');
+reset role;
+
+set role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000a', false);
+create temp table if not exists t_saved (r jsonb);
+grant all on t_saved to authenticated;
+insert into t_saved select public.admin_save_note(null, '10000000-0000-0000-0000-000000000001', '新筆記', 'phase4-note', '摘要', '## 內容', 'draft', null, 5,
+  '[{"name":"SQL","slug":"sql"},{"name":"資料表關聯","slug":"t-relations"},{"name":"sql","slug":"sql"}]'::jsonb, null);
+select pg_temp.expect_eq((select count(*) from t_saved where (r->>'created')::boolean), 1, 'admin_save_note 新增筆記');
+select pg_temp.expect_eq((select count(*) from public.note_tags where note_id = (select (r->>'id')::uuid from t_saved)), 2, '標籤去重（SQL 與 sql 視為同一個）並新增新標籤');
+select pg_temp.expect_eq((select count(*) from public.tags where slug = 't-relations'), 1, '新標籤已建立');
+
+-- 更新：帶正確 updated_at 成功、移除一個標籤、發布
+insert into t_saved select public.admin_save_note((select (r->>'id')::uuid from t_saved limit 1), '10000000-0000-0000-0000-000000000001', '新筆記 v2', 'phase4-note', null, '## v2', 'published', null, 5,
+  '[{"name":"SQL","slug":"sql"}]'::jsonb, (select (r->>'updated_at')::timestamptz from t_saved limit 1));
+select pg_temp.expect_eq((select count(*) from public.notes where slug='phase4-note' and title='新筆記 v2' and status='published' and published_at is not null), 1, '更新並發布');
+select pg_temp.expect_eq((select count(*) from public.note_tags where note_id = (select (r->>'id')::uuid from t_saved limit 1)), 1, '移除未勾選的標籤');
+
+-- 樂觀鎖：使用舊的 updated_at 應失敗
+select pg_temp.expect_fail(format($$select public.admin_save_note(%L, '10000000-0000-0000-0000-000000000001', 'stale', 'phase4-note', null, '', 'draft', null, 0, '[]', '2000-01-01T00:00:00Z')$$, (select (r->>'id') from t_saved limit 1)), '過期的 updated_at 觸發 NOTE_CONFLICT');
+select pg_temp.expect_fail($$select public.admin_save_note('99999999-9999-9999-9999-999999999999', '10000000-0000-0000-0000-000000000001', 'x', 'nope', null, '', 'draft', null, 0, '[]', null)$$, '不存在的筆記回傳 NOTE_NOT_FOUND');
+select pg_temp.expect_fail($$select public.admin_save_note(null, '10000000-0000-0000-0000-000000000001', 'dup', 'phase4-note', null, '', 'draft', null, 0, '[]', null)$$, 'slug 重複被拒');
+select pg_temp.expect_fail($$select public.admin_save_note(null, '10000000-0000-0000-0000-000000000001', 'x', 'too-many', null, '', 'draft', null, 0, (select jsonb_agg(jsonb_build_object('name','t'||g,'slug','t'||g)) from generate_series(1,21) g), null)$$, '標籤超過 20 個被拒');
+select pg_temp.expect_fail($$select public.admin_save_note(null, '10000000-0000-0000-0000-000000000001', 'x', 'bad-status', null, '', 'deleted', null, 0, '[]', null)$$, 'status CHECK 仍生效');
+-- 交易原子性：標籤 slug 格式錯誤 → 整筆失敗，不留下半套筆記
+select pg_temp.expect_fail($$select public.admin_save_note(null, '10000000-0000-0000-0000-000000000001', 'atomic', 'atomic-note', null, '', 'draft', null, 0, '[{"name":"x","slug":"Bad Slug"}]', null)$$, '標籤錯誤時整筆回滾');
+reset role;
+select pg_temp.expect_eq((select count(*) from public.notes where slug = 'atomic-note'), 0, '回滾後沒有殘留筆記');
 \o
 \echo '✅ 全部 RLS / 約束測試通過'

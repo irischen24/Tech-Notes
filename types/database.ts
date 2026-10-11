@@ -1,5 +1,5 @@
 /**
- * Supabase Database 型別 — 對應 supabase/migrations/ 下所有 migration（目前到 20261011000002）
+ * Supabase Database 型別 — 對應 supabase/migrations/ 下所有 migration（目前到 20261011000003）
  *
  * 此檔依 `supabase gen types typescript` 的輸出格式手寫（開發環境無法連到專案）。
  * 套用 migration 後，請以官方產生器覆蓋並比對差異：
@@ -307,6 +307,22 @@ export type Database = {
     Views: Record<string, never>;
     Functions: {
       is_admin: { Args: Record<string, never>; Returns: boolean };
+      admin_save_note: {
+        Args: {
+          p_id: string | null;
+          p_chapter_id: string;
+          p_title: string;
+          p_slug: string;
+          p_summary: string | null;
+          p_content_md: string;
+          p_status: NoteStatus;
+          p_cover_image: string | null;
+          p_sort_order: number;
+          p_tags: Json;
+          p_expected_updated_at: string | null;
+        };
+        Returns: Json;
+      };
       search_published_notes: {
         Args: { search_query: string; max_results?: number };
         Returns: {

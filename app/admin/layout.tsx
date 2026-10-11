@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { Suspense, type ReactNode } from "react";
 import { ShieldAlert } from "lucide-react";
+import { AdminNav } from "@/components/admin/admin-nav";
 import { LogoutButton } from "@/components/auth/logout-button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -15,7 +16,6 @@ export const metadata: Metadata = {
 /**
  * 後台外框。這裡的檢查是第二道防線（第一道是 proxy、最後一道是 RLS）；
  * 每個頁面、Server Action、Route Handler 仍會獨立呼叫 DAL 驗證。
- * Phase 4 會在此加入 Sidebar 與 Breadcrumb。
  */
 export default function AdminLayout({ children }: { children: ReactNode }) {
   return (
@@ -46,14 +46,19 @@ async function AdminGate({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
-      <div className="mb-8 flex flex-wrap items-center justify-between gap-3 rounded-full bg-surface-container px-5 py-2">
-        <p className="type-label text-on-surface-variant">
-          管理員：<span className="text-on-surface">{auth.profile.username}</span>
-        </p>
-        <LogoutButton />
-      </div>
-      {children}
+    <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:grid lg:grid-cols-[14rem_minmax(0,1fr)] lg:gap-8 lg:py-8">
+      <aside className="mb-6 lg:mb-0">
+        <div className="lg:sticky lg:top-24 lg:space-y-6">
+          <div className="mb-3 flex items-center justify-between gap-2 rounded-full bg-surface-container px-4 py-1.5 lg:mb-0">
+            <p className="truncate type-label text-on-surface-variant">
+              管理員：<span className="text-on-surface">{auth.profile.username}</span>
+            </p>
+            <LogoutButton />
+          </div>
+          <AdminNav />
+        </div>
+      </aside>
+      <div className="min-w-0">{children}</div>
     </div>
   );
 }
