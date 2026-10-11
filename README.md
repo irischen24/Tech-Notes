@@ -9,10 +9,37 @@
 | Phase | 狀態 |
 |---|---|
 | 1. Next.js / Tailwind / Supabase 連線 / Design System | ✅ 完成 |
-| 2. Schema、RLS、管理員登入 | 未開始 |
+| 2. Schema、RLS、Storage policy、管理員登入 | ✅ 完成（需依下方「Supabase 初始設定」套用到專案） |
 | 3–7 | 未開始 |
 
-Phase 1 可用頁面：`/`（首頁）、`/design-system`（元件與 Supabase 連線檢查）、`/api/health`。
+可用頁面：`/`、`/login`、`/admin`（需管理員）、`/design-system`、`/api/health`、`/auth/confirm`（Email 連結回呼）。
+
+## Supabase 初始設定（Phase 2，只需做一次）
+
+以下步驟都在 Supabase Dashboard 操作，無法由程式自動完成。
+
+1. **套用 Schema**：SQL Editor → New query → 貼上 `supabase/migrations/20261011000001_initial_schema.sql` 全文 → Run。
+   （若使用 Supabase CLI：`npx supabase link --project-ref hfozxjsriughgduwfbgn && npx supabase db push`）
+2. **初始分類**：SQL Editor 執行 `supabase/seed.sql`（可重複執行）。
+3. **關閉公開註冊**：Authentication → Sign In / Providers → 關閉「Allow new users to sign up」。
+4. **密碼政策**：Authentication → Policies（或 Providers → Email）將最短密碼長度設為 12 以上。
+5. **建立管理員帳號**：Authentication → Users → Add user → Create new user，輸入 Email 與高強度密碼，勾選 Auto Confirm User。
+   規格中的開發密碼 `1234` 不符合 Supabase 最短長度，也不應用於任何環境。
+6. **指定為管理員**：開啟 `supabase/scripts/promote-admin.sql`，**只在 SQL Editor 中**把 `ADMIN_EMAIL_HERE` 換成該 Email 後執行。完成後顯示名稱為 `iris`。不要把真實 Email commit 回 Repository。
+7. **Auth URL**：依下方「Supabase Auth URL 設定」設定 Site URL 與 Redirect URLs。
+8. **Email 範本**（需要重設密碼時）：Authentication → Email Templates → Reset Password 的連結改為
+   `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=recovery&next=/admin`
+9. **產生正式型別**：`npx supabase gen types typescript --project-id hfozxjsriughgduwfbgn --schema public > types/database.ts`，與目前手寫版比對後 commit。
+10. **驗證**：開啟 `/admin` → 導向登入 → 登入後應看到「資料庫連線與管理權限正常」與 25 個分類。
+
+### 資料庫測試（本機 PostgreSQL 15+）
+
+```bash
+npm run test:db    # 建立暫時資料庫 → stub → migration → seed（執行兩次）→ 43 項 RLS / 約束斷言
+```
+
+`supabase/tests/local-supabase-stub.sql` 只模擬 Supabase 的 roles、`auth.uid()` 與 storage 表，**不可在 Supabase 執行**。
+GitHub Actions（`.github/workflows/ci.yml`）每次 push 都會跑 lint、typecheck、單元測試、build 與資料庫測試。
 
 ## 本機開發
 
@@ -36,6 +63,8 @@ npm run verify      # 以上四項依序執行
 # E2E（第一次需下載瀏覽器）
 npx playwright install chromium
 npm run build && npm run test:e2e
+# 管理員登入流程需要帳號，以環境變數提供（不要寫進任何檔案）：
+E2E_ADMIN_EMAIL=... E2E_ADMIN_PASSWORD=... npm run test:e2e
 ```
 
 ## 環境變數
