@@ -1,5 +1,5 @@
 /**
- * Supabase Database 型別 — 對應 supabase/migrations/ 下所有 migration（目前到 20261011000003）
+ * Supabase Database 型別 — 對應 supabase/migrations/ 下所有 migration（目前到 20261011000004）
  *
  * 此檔依 `supabase gen types typescript` 的輸出格式手寫（開發環境無法連到專案）。
  * 套用 migration 後，請以官方產生器覆蓋並比對差異：
@@ -320,6 +320,18 @@ export type Database = {
           p_sort_order: number;
           p_tags: Json;
           p_expected_updated_at: string | null;
+        };
+        Returns: Json;
+      };
+      admin_import_hackmd_note: {
+        Args: {
+          p_hackmd_note_id: string;
+          p_chapter_id: string;
+          p_title: string;
+          p_slug: string;
+          p_content_md: string;
+          p_content_hash: string;
+          p_tags: Json;
         };
         Returns: Json;
       };

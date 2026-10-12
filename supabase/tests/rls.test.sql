@@ -174,5 +174,39 @@ select pg_temp.expect_fail($$select public.admin_save_note(null, '10000000-0000-
 select pg_temp.expect_fail($$select public.admin_save_note(null, '10000000-0000-0000-0000-000000000001', 'atomic', 'atomic-note', null, '', 'draft', null, 0, '[{"name":"x","slug":"Bad Slug"}]', null)$$, '標籤錯誤時整筆回滾');
 reset role;
 select pg_temp.expect_eq((select count(*) from public.notes where slug = 'atomic-note'), 0, '回滾後沒有殘留筆記');
+
+-- ── Phase 5：HackMD 匯入 ──
+set role anon;
+select set_config('request.jwt.claim.sub', '', false);
+select pg_temp.expect_fail($$select public.admin_import_hackmd_note('HmdNote01', '10000000-0000-0000-0000-000000000001', 't', 'hmd-anon', 'x', 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', '[]')$$, 'anon 不可匯入 HackMD');
+reset role;
+set role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000b', false);
+select pg_temp.expect_fail($$select public.admin_import_hackmd_note('HmdNote01', '10000000-0000-0000-0000-000000000001', 't', 'hmd-visitor', 'x', 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', '[]')$$, 'visitor 不可匯入 HackMD');
+reset role;
+set role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000a', false);
+create temp table if not exists t_import (r jsonb);
+grant all on t_import to authenticated;
+insert into t_import select public.admin_import_hackmd_note('HmdNote01', '10000000-0000-0000-0000-000000000001', 'HackMD 筆記', 'hmd-note-01', '## 內容', 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', '[{"name":"HackMD","slug":"hackmd"}]');
+select pg_temp.expect_eq((select count(*) from public.notes where hackmd_note_id='HmdNote01' and source_type='hackmd' and status='draft' and hackmd_content_hash is not null and hackmd_synced_at is not null), 1, '匯入為草稿並記錄來源與雜湊');
+select pg_temp.expect_eq((select count(*) from public.note_tags nt join public.notes n on n.id = nt.note_id where n.hackmd_note_id='HmdNote01'), 1, '匯入時建立標籤');
+insert into t_import select public.admin_import_hackmd_note('HmdNote01', '10000000-0000-0000-0000-000000000001', '再次匯入', 'hmd-note-01-b', '## 新', 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', '[]');
+select pg_temp.expect_eq((select count(*) from t_import where (r->>'skipped')::boolean), 1, '重複匯入回傳 skipped');
+select pg_temp.expect_eq((select count(*) from public.notes where hackmd_note_id='HmdNote01'), 1, '同一 HackMD 筆記只存在一份');
+select pg_temp.expect_eq((select count(*) from public.notes where hackmd_note_id='HmdNote01' and title='HackMD 筆記'), 1, '重複匯入不覆蓋既有內容');
+select pg_temp.expect_fail($$select public.admin_import_hackmd_note('../../etc', '10000000-0000-0000-0000-000000000001', 't', 'hmd-bad', 'x', 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', '[]')$$, '拒絕不合法的 HackMD ID');
+select pg_temp.expect_fail($$select public.admin_import_hackmd_note('HmdNote02', '10000000-0000-0000-0000-000000000001', 't', 'hmd-bad-hash', 'x', 'nothex', '[]')$$, '拒絕不合法的內容雜湊');
+select pg_temp.expect_fail($$select public.admin_import_hackmd_note('HmdNote03', '10000000-0000-0000-0000-000000000001', 't', 'phase4-note', 'x', 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', '[]')$$, '匯入時 slug 重複被拒');
+select pg_temp.expect_fail($$select public.admin_import_hackmd_note('HmdNote04', '10000000-0000-0000-0000-000000000001', 't', 'hmd-atomic', 'x', 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', '[{"name":"x","slug":"Bad Slug"}]')$$, '標籤錯誤時整筆回滾');
+-- admin 寫入同步紀錄
+insert into public.hackmd_sync_logs (hackmd_note_id, note_id, status, http_status, finished_at) select 'HmdNote01', id, 'success', 200, now() from public.notes where hackmd_note_id='HmdNote01';
+select pg_temp.expect_fail($$update public.hackmd_sync_logs set status = 'failed'$$, 'hackmd_sync_logs 不可修改');
+reset role;
+select pg_temp.expect_eq((select count(*) from public.notes where slug = 'hmd-atomic'), 0, '回滾後沒有殘留筆記');
+set role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000b', false);
+select pg_temp.expect_eq((select count(*) from public.hackmd_sync_logs), 0, 'visitor 看不到同步紀錄');
+reset role;
 \o
 \echo '✅ 全部 RLS / 約束測試通過'

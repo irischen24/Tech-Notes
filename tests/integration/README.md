@@ -22,3 +22,14 @@
 2. 以同一個 secret 簽 `{"sub":"<user id>","role":"authenticated","aud":"authenticated","exp":...}`，
    組成 session JSON 後以 `sb-localhost-auth-token=base64-<base64url(JSON)>` 作為 cookie。
 3. 以 cookie 請求 `/admin/*` 頁面；Server Action 可用 `Next-Action: <id>` 標頭 POST（id 見 `.next/server/server-reference-manifest.json`），並帶 `Origin` 標頭。
+
+## HackMD（Phase 5）
+
+`tests/integration/mock-hackmd-server.mjs` 模擬 HackMD API v1（`/me`、`/notes`、`/notes/:id`，含速率限制標頭與 401 / 404 / 429）。
+
+```bash
+MOCK_HACKMD_TOKEN=<本機測試字串> node tests/integration/mock-hackmd-server.mjs   # 4010 埠
+HACKMD_API_TOKEN=<同上> HACKMD_API_BASE_URL=http://localhost:4010/v1 npm start
+# 模擬在 HackMD 編輯：
+curl -X POST localhost:4010/__set/JoinNote01 -d '{"content":"# 新內容"}'
+```
