@@ -208,5 +208,51 @@ set role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000b', false);
 select pg_temp.expect_eq((select count(*) from public.hackmd_sync_logs), 0, 'visitor 看不到同步紀錄');
 reset role;
+
+-- ── Phase 6：圖片管理與容量設定 ──
+-- 以擁有者身分補上 Storage metadata 與登記資料
+update storage.objects set metadata = '{"size": 2048, "mimetype": "image/png"}' where name = 'admin.png';
+update storage.objects set metadata = '{"size": 1024, "mimetype": "image/webp"}' where name = 'draft.png';
+insert into storage.objects (bucket_id, name, owner, metadata) values ('note-images', '2026/10/orphan.jpg', '00000000-0000-0000-0000-00000000000a', '{"size": 4096, "mimetype": "image/jpeg"}');
+insert into public.note_assets (bucket, storage_path, mime_type, size_bytes, uploaded_by, original_name)
+values ('note-images', 'admin.png', 'image/png', 2048, '00000000-0000-0000-0000-00000000000a', '截圖.png');
+update public.notes set content_md = content_md || E'\n![圖](https://x.supabase.co/storage/v1/object/public/note-images/admin.png)' where slug = 'published-note';
+select pg_temp.expect_fail($$insert into public.note_assets (bucket, storage_path, mime_type, size_bytes, original_name) values ('note-images', 'long.png', 'image/png', 1, repeat('a', 256))$$, 'original_name 長度限制');
+select pg_temp.expect_fail($$insert into public.storage_settings (id) values (2)$$, 'storage_settings 只能有一列');
+
+set role anon;
+select set_config('request.jwt.claim.sub', '', false);
+select pg_temp.expect_fail($$select * from public.storage_settings$$, 'anon 不可讀容量設定');
+select pg_temp.expect_fail($$select public.admin_storage_overview()$$, 'anon 不可呼叫容量統計');
+reset role;
+
+set role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000b', false);
+select pg_temp.expect_eq((select count(*) from public.storage_settings), 0, 'visitor 讀不到容量設定（RLS）');
+update public.storage_settings set quota_bytes = 2097152, updated_by = '00000000-0000-0000-0000-00000000000b';
+select pg_temp.expect_fail($$select public.admin_storage_overview()$$, 'visitor 不可呼叫容量統計');
+select pg_temp.expect_fail($$select * from public.admin_list_storage_objects('note-images')$$, 'visitor 不可列出圖片');
+reset role;
+select pg_temp.expect_eq((select count(*) from public.storage_settings where quota_bytes is null), 1, 'visitor 的 update 沒有生效，額度預設為 NULL（未設定）');
+
+set role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000a', false);
+update public.storage_settings set quota_bytes = 1073741824, notice_percent = 60, updated_by = '00000000-0000-0000-0000-00000000000a';
+select pg_temp.expect_eq((select count(*) from public.storage_settings where quota_bytes = 1073741824 and notice_percent = 60), 1, 'admin 可更新額度');
+select pg_temp.expect_fail($$update public.storage_settings set quota_bytes = 10, updated_by = '00000000-0000-0000-0000-00000000000a'$$, '額度低於 1MB 被拒');
+select pg_temp.expect_fail($$update public.storage_settings set notice_percent = 90, warning_percent = 85, updated_by = '00000000-0000-0000-0000-00000000000a'$$, '門檻順序錯誤被拒');
+select pg_temp.expect_fail($$update public.storage_settings set quota_bytes = 2097152, updated_by = '00000000-0000-0000-0000-00000000000b'$$, 'admin 不可冒用他人為修改者');
+select pg_temp.expect_fail($$update public.storage_settings set id = 2$$, '不可修改 id 欄位');
+select pg_temp.expect_fail($$delete from public.storage_settings$$, '不可刪除容量設定');
+select pg_temp.expect_eq((select ((public.admin_storage_overview() -> 'untracked_count')::bigint)), 2, '統計：未登記檔案 2 個（draft.png、orphan.jpg）');
+select pg_temp.expect_eq((select (b ->> 'bytes')::bigint from jsonb_array_elements(public.admin_storage_overview() -> 'buckets') b where b ->> 'bucket' = 'note-images'), 6144, '統計：note-images 總大小');
+select pg_temp.expect_eq((select (b ->> 'largest')::bigint from jsonb_array_elements(public.admin_storage_overview() -> 'buckets') b where b ->> 'bucket' = 'note-images'), 4096, '統計：最大單一圖片');
+select pg_temp.expect_eq((select case when (public.admin_storage_overview() ->> 'database_bytes')::bigint > 0 then 1 else 0 end), 1, '統計：資料庫大小');
+select pg_temp.expect_eq((select count(*) from public.admin_list_storage_objects('note-images')), 2, '列出 note-images 全部檔案');
+select pg_temp.expect_eq((select count(*) from public.admin_list_storage_objects('note-images', 48, 0, true)), 1, '只列未登記檔案');
+select pg_temp.expect_eq((select reference_count from public.admin_list_storage_objects('note-images') where name = 'admin.png'), 1, '計算引用此圖片的筆記數');
+select pg_temp.expect_eq((select count(*) from public.admin_list_storage_objects('note-images') where name = 'admin.png' and original_name = '截圖.png'), 1, '帶出原始檔名');
+select pg_temp.expect_fail($$select * from public.admin_list_storage_objects('other-bucket')$$, '只允許兩個圖片 bucket');
+reset role;
 \o
 \echo '✅ 全部 RLS / 約束測試通過'

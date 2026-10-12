@@ -1,5 +1,5 @@
 /**
- * Supabase Database 型別 — 對應 supabase/migrations/ 下所有 migration（目前到 20261011000004）
+ * Supabase Database 型別 — 對應 supabase/migrations/ 下所有 migration（目前到 20261012000005）
  *
  * 此檔依 `supabase gen types typescript` 的輸出格式手寫（開發環境無法連到專案）。
  * 套用 migration 後，請以官方產生器覆蓋並比對差異：
@@ -206,6 +206,7 @@ export type Database = {
           mime_type: string;
           size_bytes: number;
           uploaded_by: string | null;
+          original_name: string | null;
           created_at: string;
         };
         Insert: {
@@ -216,6 +217,7 @@ export type Database = {
           mime_type: string;
           size_bytes: number;
           uploaded_by: string;
+          original_name?: string | null;
         };
         Update: {
           note_id?: string | null;
@@ -233,6 +235,34 @@ export type Database = {
           {
             foreignKeyName: "note_assets_uploaded_by_fkey";
             columns: ["uploaded_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      storage_settings: {
+        Row: {
+          id: number;
+          quota_bytes: number | null;
+          notice_percent: number;
+          warning_percent: number;
+          critical_percent: number;
+          updated_by: string | null;
+          updated_at: string;
+        };
+        Insert: never; // 單列由 migration 建立
+        Update: {
+          quota_bytes?: number | null;
+          notice_percent?: number;
+          warning_percent?: number;
+          critical_percent?: number;
+          updated_by?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "storage_settings_updated_by_fkey";
+            columns: ["updated_by"];
             isOneToOne: false;
             referencedRelation: "profiles";
             referencedColumns: ["id"];
@@ -306,6 +336,22 @@ export type Database = {
     };
     Views: Record<string, never>;
     Functions: {
+      admin_storage_overview: { Args: Record<string, never>; Returns: Json };
+      admin_list_storage_objects: {
+        Args: { p_bucket: StorageBucket; p_limit?: number; p_offset?: number; p_untracked_only?: boolean };
+        Returns: {
+          bucket: StorageBucket;
+          name: string;
+          size_bytes: number;
+          mime_type: string | null;
+          created_at: string;
+          asset_id: string | null;
+          original_name: string | null;
+          note_id: string | null;
+          reference_count: number;
+          total_count: number;
+        }[];
+      };
       is_admin: { Args: Record<string, never>; Returns: boolean };
       admin_save_note: {
         Args: {

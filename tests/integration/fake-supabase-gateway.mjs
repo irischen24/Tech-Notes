@@ -1,5 +1,6 @@
 // 本機整合測試用：模擬 Supabase 閘道。
 //   /rest/v1/*      → 轉給 PostgREST（127.0.0.1:3300）
+//   /storage/v1/*   → 轉給 Storage 模擬伺服器（STORAGE_PORT，預設 54322）
 //   /auth/v1/health → 200
 //   /auth/v1/user   → 以 HS256 驗證 Bearer JWT 後回傳使用者（supabase-js getClaims() 對 HS256 會呼叫此端點）
 // JWT secret 由環境變數 LOCAL_JWT_SECRET 提供，只用於本機。
@@ -32,6 +33,21 @@ http
       }
       res.writeHead(200, { "content-type": "application/json" });
       return res.end(JSON.stringify({ id: claims.sub, aud: "authenticated", role: "authenticated", email: claims.email, app_metadata: {}, user_metadata: {}, created_at: new Date().toISOString() }));
+    }
+    // /storage/v1/* → Storage 模擬伺服器（tests/integration/fake-storage-server.mjs，選用）
+    if (req.url.startsWith("/storage/v1")) {
+      const upstream = http.request(
+        { host: "127.0.0.1", port: Number(process.env.STORAGE_PORT ?? 54322), path: req.url, method: req.method, headers: req.headers },
+        (r) => {
+          res.writeHead(r.statusCode, r.headers);
+          r.pipe(res);
+        },
+      );
+      upstream.on("error", () => {
+        res.writeHead(502);
+        res.end();
+      });
+      return req.pipe(upstream);
     }
     if (!req.url.startsWith("/rest/v1")) {
       res.writeHead(404);

@@ -33,3 +33,15 @@ HACKMD_API_TOKEN=<同上> HACKMD_API_BASE_URL=http://localhost:4010/v1 npm start
 # 模擬在 HackMD 編輯：
 curl -X POST localhost:4010/__set/JoinNote01 -d '{"content":"# 新內容"}'
 ```
+
+## Storage（Phase 6）
+
+`tests/integration/fake-storage-server.mjs` 模擬 Supabase Storage 本專案用到的端點（簽名上傳、info、簽名 / 公開下載含 Range、刪除）。
+檔案存在記憶體，metadata 寫入 PostgreSQL `storage.objects`；權限以使用者 JWT 身分 + `storage.objects` RLS 判斷。
+
+```bash
+npm i --no-save pg
+LOCAL_JWT_SECRET=<同上> PGURL=postgres://<本機超級使用者>@localhost:5432/<資料庫> node tests/integration/fake-storage-server.mjs   # 預設 54322 埠
+```
+
+閘道 `fake-supabase-gateway.mjs` 會把 `/storage/v1/*` 轉到此伺服器。
