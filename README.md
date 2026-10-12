@@ -12,9 +12,12 @@
 | 2. Schema、RLS、Storage policy、管理員登入 | ✅ 完成（需依下方「Supabase 初始設定」套用到專案） |
 | 3. 公開網站、Markdown Renderer、搜尋 | ✅ 完成（需套用 migration 0002） |
 | 4. 後台 Dashboard、分類 / 章節管理、筆記編輯與發布 | ✅ 完成（需套用 migration 0003） |
-| 5–7 | 未開始 |
+| 5. HackMD 匯入與同步 | ✅ 完成（需套用 migration 0004 並設定 HACKMD_API_TOKEN） |
+| 6–7 | 未開始 |
 
-後台：`/admin`、`/admin/notes`（含新增 / 編輯）、`/admin/categories`、`/admin/chapters`、`/admin/logs`、`/admin/settings`。
+後台：`/admin`、`/admin/notes`（含新增 / 編輯）、`/admin/categories`、`/admin/chapters`、`/admin/hackmd`、`/admin/logs`、`/admin/settings`。
+
+> **Phase 5 升級**：在 SQL Editor 執行 `supabase/migrations/20261011000004_hackmd_import.sql`；在 Vercel 新增 Server-only 環境變數 `HACKMD_API_TOKEN` 後 Redeploy。
 
 > **Phase 4 升級**：在 SQL Editor 執行 `supabase/migrations/20261011000003_admin_note_editing.sql`（筆記儲存函式，含標籤同步與樂觀鎖）。
 
@@ -47,7 +50,7 @@
 ### 資料庫測試（本機 PostgreSQL 15+）
 
 ```bash
-npm run test:db    # 建立暫時資料庫 → stub → migration → seed（執行兩次）→ 68 項 RLS / 約束 / 搜尋 / 筆記儲存斷言
+npm run test:db    # 建立暫時資料庫 → stub → migration → seed（執行兩次）→ 82 項 RLS / 約束 / 搜尋 / 筆記儲存 / HackMD 匯入斷言
 ```
 
 `supabase/tests/local-supabase-stub.sql` 只模擬 Supabase 的 roles、`auth.uid()` 與 storage 表，**不可在 Supabase 執行**。
@@ -85,7 +88,8 @@ E2E_ADMIN_EMAIL=... E2E_ADMIN_PASSWORD=... npm run test:e2e
 |---|---|---|
 | `NEXT_PUBLIC_SUPABASE_URL` | 公開 | Supabase 專案網址 |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` 或 `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | 公開 | 二擇一，同時設定時 publishable 優先 |
-| `HACKMD_API_TOKEN` | **Server-only** | Phase 5 使用，禁止加 `NEXT_PUBLIC_` |
+| `HACKMD_API_TOKEN` | **Server-only** | HackMD 匯入與同步，禁止加 `NEXT_PUBLIC_` |
+| `HACKMD_API_BASE_URL` | Server-only，選填 | 預設 `https://api.hackmd.io/v1`；僅 HackMD EE 或本機模擬測試需要 |
 
 啟動時會驗證格式；若誤把 `service_role` 或 `sb_secret_` 金鑰放進 `NEXT_PUBLIC_` 變數會直接拒絕。
 本專案預設不使用 service_role key。
@@ -138,3 +142,12 @@ Authentication → Providers → Email：建議關閉公開註冊（Allow new us
 - **顯示「金鑰被拒絕」**：key 不屬於此 Supabase 專案，或複製時少了字元。
 - **顯示「無法連線到 Supabase」**：專案可能被暫停（免費方案閒置），到 Dashboard 恢復。
 - **Build 出現 `cookies()` 需在 Suspense 內的錯誤**：Cache Components 規則，讀取 Session 的元件要包在 `<Suspense>` 內。
+
+## HackMD 匯入與同步（Phase 5）
+
+- 額度：HackMD 免費方案每月 2000 次、每 5 分鐘 100 次 API 呼叫。本系統**不會**在頁面載入時自動呼叫 HackMD：
+  測試連線、載入列表各 1 次；每匯入 1 篇或檢查同步 1 篇各 1 次；不自動重試。
+- 匯入後一律是**草稿**；同一篇 HackMD 筆記（`hackmd_note_id`）只會匯入一次。
+- 內容轉換：移除 YAML front matter、開頭的 H1（本站另外顯示標題）、`[TOC]` 與 `###### tags:` 行。HackMD 專屬語法（`:::info`、`{%youtube%}` 等）會以一般文字顯示。
+- 同步只比對**內容**（SHA-256），本地修改的標題、摘要、標籤、狀態不會被 HackMD 覆蓋。
+- 單向同步：HackMD → Supabase。只有 HackMD 更新、本地未修改時才自動更新；雙方都修改時顯示差異，由管理員選擇「保留本地」或「用 HackMD 覆蓋」。
