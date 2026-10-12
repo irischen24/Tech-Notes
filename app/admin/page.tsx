@@ -6,6 +6,9 @@ import { ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { StatusBanner } from "@/components/ui/status-banner";
 import { getDashboardStats, listAuditLogs } from "@/lib/admin/queries";
+import { getStorageOverview } from "@/lib/admin/storage-queries";
+import { formatBytes } from "@/lib/storage/images";
+import { LEVEL_LABEL, needsAttention } from "@/lib/storage/quota";
 import { requireAdmin } from "@/lib/auth/dal";
 import { formatDate } from "@/lib/utils/date";
 
@@ -28,6 +31,10 @@ export default async function AdminDashboardPage() {
       </>
     );
   }
+
+  // 容量警告：統計失敗不影響 Dashboard（例如 migration 0005 尚未套用）
+  const storage = await getStorageOverview(supabase).catch(() => null);
+  const storageAlert = storage && needsAttention(storage.usage.level) && storage.usage.percent !== null ? storage.usage : null;
 
   const cards = [
     { label: "已發布筆記", value: stats.counts.published, href: "/admin/notes?status=published" },
@@ -57,6 +64,19 @@ export default async function AdminDashboardPage() {
           </>
         }
       />
+
+      {storageAlert ? (
+        <div className="mb-6">
+          <StatusBanner
+            tone={storageAlert.level === "notice" ? "info" : storageAlert.level === "warning" ? "warning" : "error"}
+            title={`圖片容量${LEVEL_LABEL[storageAlert.level]}：已使用 ${storageAlert.percent?.toFixed(1)}%（${formatBytes(storageAlert.usedBytes)}）`}
+          >
+            <Link href="/admin/storage" className="underline">
+              前往圖片管理
+            </Link>
+          </StatusBanner>
+        </div>
+      ) : null}
 
       <dl className="grid grid-cols-2 gap-4 md:grid-cols-3">
         {cards.map((c) => {

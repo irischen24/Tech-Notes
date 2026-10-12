@@ -43,6 +43,9 @@ const ACTION_LABEL: Record<string, string> = {
   "hackmd.test_connection": "測試 HackMD 連線",
   "hackmd.import": "匯入 HackMD 筆記",
   "hackmd.sync": "同步 HackMD 筆記",
+  "storage.upload": "上傳圖片",
+  "storage.delete": "刪除圖片",
+  "storage.update_settings": "變更容量設定",
 };
 
 function describe(metadata: unknown): string {
