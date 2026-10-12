@@ -253,7 +253,7 @@ iris-tech-notes/
 | 2 ✅ | Schema、RLS、Storage policy、管理員登入 | Migration 可在乾淨專案重跑；anon 讀不到草稿、無法寫入（以 SQL 測試驗證）；visitor 無法自升 admin；Email 登入 / 登出可用 |
 | 3 ✅ | 公開網站、Markdown Renderer、搜尋 | ISR 生效；XSS 測試通過；TOC / Anchor / 上下篇 / 程式碼複製；手機可讀 |
 | 4 ✅ | 後台 Dashboard、分類 / 章節 / 筆記 CRUD | 每個 Action 有 requireAdmin + zod；發布後 `updateTag` 使公開頁更新；刪除受限提示；audit log 寫入 |
-| 5 | HackMD 匯入與同步 | 測試連線、列表、匯入為草稿、不重複、衝突比對畫面；401/403/404/429/5xx/逾時皆有訊息 |
+| 5 ✅ | HackMD 匯入與同步 | 測試連線、列表、匯入為草稿、不重複、衝突比對畫面；401/403/404/429/5xx/逾時皆有訊息 |
 | 6 | 圖片管理與容量警告 | MIME / 大小驗證、安全檔名、可設定額度、70/85/95% 警告；不顯示虛構計費額度 |
 | 7 | 測試、安全檢查、部署 | Playwright 三種裝置通過；Vercel Production 部署成功；Push 自動部署 |
 
@@ -299,4 +299,17 @@ Markdown：`skipHtml`、不使用 `rehype-raw`、連結 / 圖片白名單（圖�
 - **刪除限制**：分類（有子分類或章節）與章節（有筆記，含草稿）在 action 內先檢查並說明原因；FK `RESTRICT` 仍是最終防線。
 - **表單**：React Hook Form + 同一份 zod schema（client 只為體驗，server 一定重新驗證）。
 - **DAL 調整**：`getAuthorization()` 先 `await connection()`，因為驗證 JWT 到期需要目前時間；否則 Next.js 16 會在預先渲染階段報錯。
-- **尚未提供**：圖片上傳（Phase 6，封面目前輸入 https 網址）、HackMD 匯入（Phase 5）、拖曳排序（以數字欄位排序）。
+- **尚未提供（Phase 4 當時）**：圖片上傳（Phase 6，封面目前輸入 https 網址）、HackMD 匯入（已於 Phase 5 完成）、拖曳排序（以數字欄位排序）。
+
+## 11. Phase 5 實作備註
+
+- **API 依據**：端點與欄位依官方 `@hackmd/api` SDK 型別（`GET /me`、`GET /notes`、`GET /notes/:id`；Note 含 `id`、`title`、`tags`、`lastChangedAt`、`content`）；
+  速率限制依官方 API Policy（每月 2000 次、每 5 分鐘 100 次，標頭 `X-RateLimit-UserLimit / UserRemaining / UserReset`）。
+  `lastChangedAt` 同時接受 ISO 字串與 Unix 毫秒。
+- **Token 安全**：只存在 `HACKMD_API_TOKEN`（server-only）；只放在 Authorization 標頭；`redirect: "error"` 防止 Token 隨重新導向送到其他網域；
+  錯誤訊息與同步紀錄經 `redactToken()`；`HACKMD_API_BASE_URL` 非 localhost 必須 https。
+- **同步判斷**：`hackmd_content_hash` 存「上次同步時轉換後內容」的 SHA-256。
+  本地雜湊 ≠ 基準 → 本地改過；HackMD 轉換後雜湊 ≠ 基準 → HackMD 改過。兩者都改 → 衝突。
+- **衝突解決的防護**：管理員選擇時必須附上檢視當下的 HackMD 雜湊與本地 `updated_at`；伺服器重新取得 HackMD 內容比對，任一方又變更就拒絕（STALE）。
+  實際寫入也以 `updated_at` 為條件，避免覆蓋檢查後才發生的本地編輯。
+- **批次匯入**：每次最多 10 篇，依序執行；已匯入者先在資料庫排除（不耗額度）；遇到 401 / 403 / 429 立即停止後續請求。

@@ -97,3 +97,17 @@ export const noteFormSchema = noteSchema.omit({ tags: true }).extend({
   tagsText: z.string().max(1000, "標籤文字過長"),
 });
 export type NoteFormValues = z.infer<typeof noteFormSchema>;
+
+const hackmdId = z.string().regex(/^[A-Za-z0-9_-]{4,64}$/, "HackMD 筆記 ID 格式不正確");
+
+export const hackmdImportSchema = z.object({
+  noteIds: z.array(hackmdId).min(1, "請至少勾選一篇筆記").max(10, "每次最多匯入 10 篇（HackMD 免費方案每 5 分鐘 100 次請求）"),
+  chapterId: z.guid("請選擇目標章節"),
+});
+
+export const hackmdSyncSchema = z.object({
+  noteId: z.guid(),
+  resolution: z.enum(["use_remote", "keep_local"]).optional(),
+  expectedRemoteHash: z.string().regex(/^[0-9a-f]{64}$/).optional(),
+  expectedUpdatedAt: z.string().max(64).optional(),
+});

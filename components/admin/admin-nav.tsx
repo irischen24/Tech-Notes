@@ -2,15 +2,16 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { FileText, FolderTree, LayoutDashboard, ListOrdered, ScrollText, Settings } from "lucide-react";
+import { CloudDownload, FileText, FolderTree, LayoutDashboard, ListOrdered, ScrollText, Settings } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 
-/** 只列出已實作的功能；HackMD（Phase 5）與圖片管理（Phase 6）完成後再加入。 */
+/** 只列出已實作的功能；圖片管理（Phase 6）完成後再加入。 */
 export const ADMIN_NAV = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard, exact: true },
   { href: "/admin/notes", label: "筆記", icon: FileText },
   { href: "/admin/categories", label: "分類", icon: FolderTree },
   { href: "/admin/chapters", label: "章節", icon: ListOrdered },
+  { href: "/admin/hackmd", label: "HackMD", icon: CloudDownload },
   { href: "/admin/logs", label: "操作紀錄", icon: ScrollText },
   { href: "/admin/settings", label: "設定", icon: Settings },
 ] as const;
