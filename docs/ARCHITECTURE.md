@@ -254,7 +254,7 @@ iris-tech-notes/
 | 3 ✅ | 公開網站、Markdown Renderer、搜尋 | ISR 生效；XSS 測試通過；TOC / Anchor / 上下篇 / 程式碼複製；手機可讀 |
 | 4 ✅ | 後台 Dashboard、分類 / 章節 / 筆記 CRUD | 每個 Action 有 requireAdmin + zod；發布後 `updateTag` 使公開頁更新；刪除受限提示；audit log 寫入 |
 | 5 ✅ | HackMD 匯入與同步 | 測試連線、列表、匯入為草稿、不重複、衝突比對畫面；401/403/404/429/5xx/逾時皆有訊息 |
-| 6 | 圖片管理與容量警告 | MIME / 大小驗證、安全檔名、可設定額度、70/85/95% 警告；不顯示虛構計費額度 |
+| 6 ✅ | 圖片管理與容量警告 | MIME / 大小驗證、安全檔名、可設定額度、70/85/95% 警告；不顯示虛構計費額度 |
 | 7 | 測試、安全檢查、部署 | Playwright 三種裝置通過；Vercel Production 部署成功；Push 自動部署 |
 
 **Storage 決策（Phase 2 已實作）**：建立雙 bucket。`note-images` 為 public（只放可公開的圖片），`note-drafts` 為 private（草稿附件，Phase 6 以 signed URL 預覽）。兩者寫入皆限 admin，且 admin 也只能寫入這兩個 bucket。若日後確定不需要私有草稿，可只使用 `note-images`。
@@ -313,3 +313,25 @@ Markdown：`skipHtml`、不使用 `rehype-raw`、連結 / 圖片白名單（圖�
 - **衝突解決的防護**：管理員選擇時必須附上檢視當下的 HackMD 雜湊與本地 `updated_at`；伺服器重新取得 HackMD 內容比對，任一方又變更就拒絕（STALE）。
   實際寫入也以 `updated_at` 為條件，避免覆蓋檢查後才發生的本地編輯。
 - **批次匯入**：每次最多 10 篇，依序執行；已匯入者先在資料庫排除（不耗額度）；遇到 401 / 403 / 429 立即停止後續請求。
+
+## 12. Phase 6 實作備註（圖片與容量）
+
+**新資料表 `storage_settings`**（單列 `id = 1`）：`quota_bytes`（可為 NULL＝未設定，1MB–1TB）、三個門檻（CHECK 依序遞增且 ≤ 100）、
+`updated_by` FK → profiles（ON DELETE SET NULL，已建索引）、`updated_at` trigger。RLS：只有 admin 可讀；更新時 `updated_by` 必須是自己；
+沒有 insert / delete policy，且 authenticated 只被授權更新設定欄位（不可改 id）。`note_assets` 新增 `original_name`（≤ 255 字元）。
+
+**函式**：`admin_storage_overview()`、`admin_list_storage_objects()` 皆為 SECURITY INVOKER，以 `storage.objects` 為準
+（包含上傳中斷而未登記的檔案），admin 依既有 Storage RLS 讀取；其他角色呼叫一律 `admin required`。
+
+**上傳安全**（三層）：
+1. 瀏覽器：大小、魔術位元組（只為體驗）。
+2. `prepareImageUploadAction`：requireAdmin、zod（MIME 白名單、大小、bucket 列舉）；路徑由伺服器以 UUID 產生；
+   以管理員 session 建立簽名上傳網址（Supabase 依 RLS 檢查 insert 權限）。Bucket 本身另有 `allowed_mime_types` 與 `file_size_limit`。
+3. `finalizeImageUploadAction`：從 Storage `info()` 讀回實際大小 / 類型，以短效簽名網址 + Range 讀取前 32 bytes 驗證魔術位元組，
+   不符即刪除檔案並記錄失敗；登記 `note_assets` 時 RLS 要求 `uploaded_by = auth.uid()`。
+
+**整合測試**：`tests/integration/fake-storage-server.mjs` 以使用者 JWT + PostgreSQL RLS 模擬 Supabase Storage 的簽名上傳、info、簽名下載（含 Range）、
+公開下載與刪除，驗證了完整上傳、偽裝檔案拒絕、私有 bucket、引用檢查、容量警告與 Dashboard 提示。
+
+**已知限制**：上傳中斷會留下未登記檔案（頁面會提示並可篩選刪除）；引用檢查以路徑字串比對筆記內文與封面，無法偵測外部網站引用；
+圖片不做縮圖或壓縮（Supabase Image Transformation 需付費方案）。

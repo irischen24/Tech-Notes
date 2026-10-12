@@ -4,7 +4,7 @@ import { useCallback, useDeferredValue, useEffect, useRef, useState } from "reac
 import { useRouter } from "next/navigation";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Code2, Eye, Heading2, PencilLine, Save, Send, Table2, ExternalLink } from "lucide-react";
+import { Code2, Eye, Heading2, ImagePlus, PencilLine, Save, Send, Table2, ExternalLink } from "lucide-react";
 import { saveNoteAction } from "@/lib/admin/actions/notes";
 import type { ChapterOption, EditableNote } from "@/lib/admin/queries";
 import { GENERAL_NOTE_TEMPLATE, TECHNICAL_NOTE_TEMPLATE } from "@/lib/markdown/templates";
@@ -16,6 +16,8 @@ import { Button, buttonClasses } from "@/components/ui/button";
 import { StatusBanner } from "@/components/ui/status-banner";
 import { cn } from "@/lib/utils/cn";
 import { SelectField, TextAreaField, TextField } from "./fields";
+import { Modal } from "./modal";
+import { ImageUploader } from "./storage/image-uploader";
 import { STATUS_LABEL } from "./note-status-badge";
 
 type Mode = "technical" | "general";
@@ -34,6 +36,7 @@ export function NoteEditor({ note, chapters, defaultChapterId }: { note: Editabl
   const [expectedUpdatedAt, setExpectedUpdatedAt] = useState<string | null>(note?.updatedAt ?? null);
   const [banner, setBanner] = useState<{ tone: "success" | "error"; title: string; conflict?: boolean } | null>(null);
   const [slugTouched, setSlugTouched] = useState(!isNew);
+  const [imageTarget, setImageTarget] = useState<"content" | "cover" | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   const form = useForm<NoteFormValues>({
@@ -225,13 +228,19 @@ export function NoteEditor({ note, chapters, defaultChapterId }: { note: Editabl
           error={errors.tagsText?.message}
           {...register("tagsText")}
         />
-        <TextField
-          id="note-cover"
-          label="封面圖片網址"
-          hint="選填；https 網址。圖片上傳功能將於圖片管理階段加入。"
-          error={errors.coverImage?.message}
-          {...register("coverImage")}
-        />
+        <div className="space-y-1">
+          <TextField
+            id="note-cover"
+            label="封面圖片網址"
+            hint="選填；https 網址或從下方上傳到公開圖庫。"
+            error={errors.coverImage?.message}
+            {...register("coverImage")}
+          />
+          <Button variant="text" size="sm" onClick={() => setImageTarget("cover")}>
+            <ImagePlus aria-hidden />
+            上傳封面
+          </Button>
+        </div>
         <TextAreaField id="note-summary" label="摘要" shellClassName="md:col-span-2" rows={2} error={errors.summary?.message} {...register("summary")} />
         <SelectField id="note-status" label="狀態" error={errors.status?.message} {...register("status")}>
           {(["draft", "published", "archived"] as const).map((s) => (
@@ -287,6 +296,10 @@ export function NoteEditor({ note, chapters, defaultChapterId }: { note: Editabl
               <Table2 aria-hidden />
               表格
             </Button>
+            <Button variant="text" size="sm" onClick={() => setImageTarget("content")}>
+              <ImagePlus aria-hidden />
+              圖片
+            </Button>
           </div>
         </div>
         {errors.contentMd?.message ? <p className="type-body-sm text-error">{errors.contentMd.message}</p> : null}
@@ -339,6 +352,24 @@ export function NoteEditor({ note, chapters, defaultChapterId }: { note: Editabl
           </Button>
         ) : null}
       </div>
+      <Modal open={imageTarget !== null} title={imageTarget === "cover" ? "上傳封面圖片" : "插入圖片"} onClose={() => setImageTarget(null)}>
+        <ImageUploader
+          bucket="note-images"
+          noteId={note?.id ?? null}
+          multiple={imageTarget === "content"}
+          onUploaded={(img) => {
+            if (imageTarget === "cover") {
+              setValue("coverImage", img.url, { shouldDirty: true, shouldValidate: true });
+              setImageTarget(null);
+            } else if (img.markdown) {
+              insert(`\n${img.markdown}\n`);
+            }
+          }}
+        />
+        <p className="mt-3 type-body-sm text-on-surface-variant">
+          圖片會上傳到公開圖庫並{imageTarget === "cover" ? "設為封面" : "插入到游標位置"}。已上傳的圖片可在「圖片」頁複製 Markdown。
+        </p>
+      </Modal>
     </form>
   );
 }
