@@ -40,6 +40,9 @@ const ACTION_LABEL: Record<string, string> = {
   "note.unpublish": "取消發布",
   "note.archive": "封存筆記",
   "note.delete": "刪除筆記",
+  "hackmd.test_connection": "測試 HackMD 連線",
+  "hackmd.import": "匯入 HackMD 筆記",
+  "hackmd.sync": "同步 HackMD 筆記",
 };
 
 function describe(metadata: unknown): string {

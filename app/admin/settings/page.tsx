@@ -28,10 +28,12 @@ export default async function AdminSettingsPage() {
         <Card className="xl:col-span-2">
           <h2 className="type-title mb-2">HackMD 連線設定</h2>
           {hackmd ? (
-            <StatusBanner tone="success" title="已設定 HACKMD_API_TOKEN">Token 只存在伺服器環境變數，這裡不會顯示內容。</StatusBanner>
+            <StatusBanner tone="success" title="已設定 HACKMD_API_TOKEN">
+              Token 只存在伺服器環境變數，這裡不會顯示內容。到 <a href="/admin/hackmd" className="underline">HackMD 同步中心</a> 測試連線與匯入筆記。
+            </StatusBanner>
           ) : (
             <StatusBanner tone="info" title="尚未設定 HACKMD_API_TOKEN">
-              HackMD 匯入在下一階段開放。屆時請在 Vercel → Settings → Environment Variables 新增 HACKMD_API_TOKEN（不要加 NEXT_PUBLIC_ 前綴），然後重新部署。
+              到 HackMD → Settings → API 建立 Token，在 Vercel → Settings → Environment Variables 新增 HACKMD_API_TOKEN（不要加 NEXT_PUBLIC_ 前綴），然後重新部署。
             </StatusBanner>
           )}
         </Card>
