@@ -13,10 +13,13 @@
 | 3. 公開網站、Markdown Renderer、搜尋 | ✅ 完成（需套用 migration 0002） |
 | 4. 後台 Dashboard、分類 / 章節管理、筆記編輯與發布 | ✅ 完成（需套用 migration 0003） |
 | 5. HackMD 匯入與同步 | ✅ 完成（需套用 migration 0004 並設定 HACKMD_API_TOKEN） |
+| 6. 圖片上傳、圖片管理、容量警告 | ✅ 完成（需套用 migration 0005） |
 | 6–7 | 未開始 |
 
-後台：`/admin`、`/admin/notes`（含新增 / 編輯）、`/admin/categories`、`/admin/chapters`、`/admin/hackmd`、`/admin/logs`、`/admin/settings`。
+後台：`/admin`、`/admin/notes`（含新增 / 編輯）、`/admin/categories`、`/admin/chapters`、`/admin/hackmd`、`/admin/storage`、`/admin/logs`、`/admin/settings`。
 
+> **Phase 6 升級**：在 SQL Editor 執行 `supabase/migrations/20261012000005_storage_management.sql`（容量設定表與圖片統計函式），然後到「圖片」頁設定容量額度。
+>
 > **Phase 5 升級**：在 SQL Editor 執行 `supabase/migrations/20261011000004_hackmd_import.sql`；在 Vercel 新增 Server-only 環境變數 `HACKMD_API_TOKEN` 後 Redeploy。
 
 > **Phase 4 升級**：在 SQL Editor 執行 `supabase/migrations/20261011000003_admin_note_editing.sql`（筆記儲存函式，含標籤同步與樂觀鎖）。
@@ -50,7 +53,7 @@
 ### 資料庫測試（本機 PostgreSQL 15+）
 
 ```bash
-npm run test:db    # 建立暫時資料庫 → stub → migration → seed（執行兩次）→ 82 項 RLS / 約束 / 搜尋 / 筆記儲存 / HackMD 匯入斷言
+npm run test:db    # 建立暫時資料庫 → stub → migration → seed（執行兩次）→ 105 項 RLS / 約束 / 搜尋 / 筆記儲存 / HackMD 匯入 / 圖片與容量斷言
 ```
 
 `supabase/tests/local-supabase-stub.sql` 只模擬 Supabase 的 roles、`auth.uid()` 與 storage 表，**不可在 Supabase 執行**。
@@ -151,3 +154,14 @@ Authentication → Providers → Email：建議關閉公開註冊（Allow new us
 - 內容轉換：移除 YAML front matter、開頭的 H1（本站另外顯示標題）、`[TOC]` 與 `###### tags:` 行。HackMD 專屬語法（`:::info`、`{%youtube%}` 等）會以一般文字顯示。
 - 同步只比對**內容**（SHA-256），本地修改的標題、摘要、標籤、狀態不會被 HackMD 覆蓋。
 - 單向同步：HackMD → Supabase。只有 HackMD 更新、本地未修改時才自動更新；雙方都修改時顯示差異，由管理員選擇「保留本地」或「用 HackMD 覆蓋」。
+
+## 圖片管理（Phase 6）
+
+- **兩個 bucket**：`note-images`（公開，用於內文與封面，知道網址即可讀取）與 `note-drafts`（私有，只能用 10 分鐘簽名網址在後台預覽，不提供 Markdown）。
+- **上傳流程**：瀏覽器先檢查 → Server Action 驗證並由伺服器產生路徑 `YYYY/MM/<uuid>.<ext>` 與一次性簽名上傳網址 →
+  瀏覽器直接上傳到 Supabase Storage（不經過 Vercel，不受 Function 請求大小限制）→ Server Action 從 Storage 讀回實際大小與類型、
+  檢查檔案開頭的魔術位元組，通過才登記到 `note_assets`，不通過立即刪除。
+- **限制**：PNG、JPEG、WebP、GIF、AVIF，單檔 10 MB；不接受 SVG（可內嵌 script）。檔名不會用於路徑，原始檔名只用於顯示。
+- **刪除**：會先檢查有幾篇筆記（含草稿）在內文或封面使用這張圖片，需再次確認才刪除。
+- **容量**：額度由管理員在「圖片」頁自行輸入（預設未設定，不寫死任何方案數字）；達 70% 提醒、85% 警告、95% 嚴重警告（門檻可調）。
+  頁面分開顯示「App 圖片用量」「PostgreSQL 資料庫大小」，Supabase 計費用量請到 Supabase Dashboard → Usage 查看。
